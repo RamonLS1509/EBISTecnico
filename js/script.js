@@ -1,30 +1,28 @@
-// NOTA: PARA EL LENGUAJE INGLES SE PUEDEN MOSTRAR 10 CHISTESç
-// PERO PARA EL LENGUAJE ESPAÑOL SOLO SE PUEDEN MOSTRAR HASTA 6
+//NOTA: SI ESTA EN INGLES LA API PUEDE MOSTRAR HASTA 10 CHISTES
+//PERO SI ESTA EN ESPAÑOL SOLO PUEDE MOSTRAR 7
 
-// =======================================================
-// 🔧 CONFIGURACIÓN INICIAL Y VARIABLES GLOBALES
-// =======================================================
+//VARIABLES GLOBALES
+
 const API_URL = 'https://v2.jokeapi.dev/joke';
 
 const numberInput = document.getElementById('number-input');
 const cardJoke = document.getElementById('card-joke');
 const favoritesContainer = document.getElementById('favorites');
 const dropdown = document.getElementById('dropdown');
-const dropdownButton = document.getElementById('dropdownDefault');
+const categoriesButton = document.getElementById('categoriesButton');
 
 let selectedCategory = 'Any';
-let favoritos = JSON.parse(localStorage.getItem('favoritos')) || [];
-let chistesGuardados = JSON.parse(localStorage.getItem('chistes')) || [];
+let favoritos = JSON.parse(localStorage.getItem('favoritos'));
+let chistesGuardados = JSON.parse(localStorage.getItem('chistes'));
 
 
-// =======================================================
-// 🌐 FUNCIONES DE DATOS Y API
-// =======================================================
-
+//FUNCIONES DE DATOS Y API
+ 
 // Obtiene y muestra los chistes
 function jokesList() {
-  const amount = parseInt(numberInput?.value) || 5;
+  const amount = parseInt(numberInput?.value);
   const languaje = 'en';
+
   // Si hay chistes guardados, los muestra sin volver a llamar a la API
   if (chistesGuardados && chistesGuardados.length > 0) {
     renderChistes(chistesGuardados);
@@ -38,7 +36,11 @@ function jokesList() {
     .then(datos => {
       if (!datos) return;
 
-      const jokes = datos.jokes || [datos];
+      let jokes = datos.jokes || [datos];
+
+      // 🆕 Eliminar chistes duplicados basados en su ID
+      jokes = filtrarDuplicados(jokes, chistesGuardados);
+
       chistesGuardados = jokes;
       localStorage.setItem('chistes', JSON.stringify(chistesGuardados));
 
@@ -48,13 +50,67 @@ function jokesList() {
     .catch(err => console.error('Error al obtener chistes:', err));
 }
 
+// Obtiene chistes adicionales cuando cambia la cantidad
+async function obtenerMasChistes(cantidad) {
+  const languaje = 'en';
+  const url = `${API_URL}/${selectedCategory}?amount=${cantidad}&lang=${languaje}`;
+  const res = await fetch(url);
+  const data = await res.json();
+
+  let nuevos = data.jokes ? data.jokes : [data];
+
+  // 🆕 Filtra duplicados respecto a los ya guardados
+  nuevos = filtrarDuplicados(nuevos, chistesGuardados);
+
+  // Si sigue habiendo menos chistes de los necesarios, volver a intentar
+  while (nuevos.length < cantidad) {
+    const faltan = cantidad - nuevos.length;
+    const extra = await obtenerMasChistes(faltan);
+    nuevos = filtrarDuplicados(nuevos.concat(extra), chistesGuardados);
+  }
+
+  return nuevos;
+}
+
+// 🆕 Función para eliminar duplicados por ID o texto
+function filtrarDuplicados(nuevos, existentes) {
+  const existentesIDs = new Set(existentes.map(c => c.id));
+  const existentesTextos = new Set(
+    existentes.map(c =>
+      c.type === 'single' ? c.joke : c.setup
+    )
+  );
+
+  return nuevos.filter(
+    n =>
+      !existentesIDs.has(n.id) &&
+      !existentesTextos.has(n.type === 'single' ? n.joke : n.setup)
+  );
+}
+
 // =======================================================
-//  Crea una tarjeta de chiste (favorito o normal)
+// 💾 FUNCIONES DE ALMACENAMIENTO Y FAVORITOS
+// =======================================================
+function guardarFavorito(joke) {
+  if (!favoritos.some(f => f.id === joke.id)) {
+    favoritos.push(joke);
+    localStorage.setItem('favoritos', JSON.stringify(favoritos));
+  }
+}
+
+function eliminarFavorito(joke) {
+  favoritos = favoritos.filter(fav => fav.id !== joke.id);
+  localStorage.setItem('favoritos', JSON.stringify(favoritos));
+}
+
+// =======================================================
+// 🎨 RENDERIZADO DE ELEMENTOS EN PANTALLA
 // =======================================================
 function crearCard(joke, index, esFavorito = false) {
-  const contenido = joke.type === 'single'
-    ? (joke.joke || 'No hay ningún chiste disponible')
-    : `${joke.setup || 'No hay ningún chiste disponible'}`;
+  const contenido =
+    joke.type === 'single'
+      ? joke.joke || 'No hay ningún chiste disponible'
+      : joke.setup || 'No hay ningún chiste disponible';
 
   const card = document.createElement('div');
   card.className = `
@@ -64,19 +120,22 @@ function crearCard(joke, index, esFavorito = false) {
   card.dataset.jokeId = joke.id;
 
   card.innerHTML = `
-    <h5 class="mb-2 text-2xl font-bold tracking-tight text-gray-900 dark:text-white">
+    <h3 class="mb-2 text-2xl font-bold tracking-tight text-gray-900 dark:text-white">
       Chiste #${index + 1}
-    </h5>
+    </h3>
     <p class="mb-3 font-normal text-gray-700 dark:text-gray-400">${contenido}</p>
     <div class="flex gap-2">
-      <button class="btn-eliminar inline-flex items-center px-3 py-2 text-sm font-medium text-center text-white bg-red-600 rounded-lg hover:bg-red-700 focus:ring-4 focus:outline-none focus:ring-red-300">
-        Eliminar
-      </button>
-      ${!esFavorito
-      ? `<button class="btn-guardar inline-flex items-center px-3 py-2 text-sm font-medium text-center text-white bg-green-600 rounded-lg hover:bg-green-700 focus:ring-4 focus:outline-none focus:ring-green-300">
+
+    `
+    if(!esFavorito)
+      card.innerHTML += `<button class="btn-guardar inline-flex items-center mr-2 px-3 py-2 text-sm font-medium text-center text-white bg-green-600 rounded-lg hover:bg-green-700 focus:ring-4 focus:outline-none focus:ring-green-300">
             Guardar
           </button>`
-      : ''}
+    
+      card.innerHTML +=`<button class="btn-eliminar inline-flex items-center px-3 py-2 text-sm font-medium text-center text-white bg-red-600 rounded-lg hover:bg-red-700 focus:ring-4 focus:outline-none focus:ring-red-300">
+        Eliminar
+      </button>
+      
     </div>
   `;
 
@@ -92,7 +151,6 @@ function crearCard(joke, index, esFavorito = false) {
       localStorage.setItem('chistes', JSON.stringify(chistesGuardados));
     }
   });
-
 
   // Botón guardar (solo si no es favorito)
   const btnGuardar = card.querySelector('.btn-guardar');
@@ -110,10 +168,10 @@ function crearCard(joke, index, esFavorito = false) {
       renderFavorites();
     });
   }
+
   return card;
 }
 
-// Renderiza los chistes normales
 function renderChistes(jokes) {
   cardJoke.innerHTML = '';
   jokes.forEach((joke, i) => {
@@ -122,7 +180,6 @@ function renderChistes(jokes) {
   });
 }
 
-// Renderiza la sección de favoritos
 function renderFavorites() {
   favoritesContainer.innerHTML = '';
 
@@ -130,7 +187,7 @@ function renderFavorites() {
 
   const title = document.createElement('h3');
   title.textContent = 'Chistes guardados';
-  title.className = 'col-span-full text-xl font-bold text-gray-800 dark:text mt-6';
+  title.className = 'col-span-full text-3xl font-bold text-gray-800 dark:text mt-6';
   favoritesContainer.appendChild(title);
 
   favoritos.forEach((fav, i) => {
@@ -139,27 +196,17 @@ function renderFavorites() {
   });
 }
 
-// Guarda un chiste en favoritos si no existe
-function guardarFavorito(joke) {
-  if (!favoritos.some(f => f.id === joke.id)) {
-    favoritos.push(joke);
-    localStorage.setItem('favoritos', JSON.stringify(favoritos));
-  }
-}
-
-// Elimina un chiste de favoritos
-function eliminarFavorito(joke) {
-  favoritos = favoritos.filter(fav => fav.id !== joke.id);
-  localStorage.setItem('favoritos', JSON.stringify(favoritos));
-}
-
-// Carga las categorías en el dropdown
+// =======================================================
+// 🗂️ CATEGORÍAS
+// =======================================================
 function cargarCategorias() {
-  const categorias = ["Any", "Programming", "Misc", "Dark", "Pun", "Spooky", "Christmas"];
+  const categorias = ['Any', 'Programming', 'Misc', 'Dark', 'Pun', 'Spooky', 'Christmas'];
 
   dropdown.innerHTML = `
     <ul class="space-y-2">
-      ${categorias.map(cat => `
+      ${categorias
+      .map(
+        cat => `
         <li>
           <button 
             data-category="${cat}" 
@@ -168,16 +215,17 @@ function cargarCategorias() {
             ${cat}
           </button>
         </li>
-      `).join('')}
+      `
+      )
+      .join('')}
     </ul>
   `;
 
   dropdown.querySelectorAll('.categoria').forEach(btn => {
     btn.addEventListener('click', () => {
       selectedCategory = btn.dataset.category;
-      dropdownButton.textContent = `Categoria: ${selectedCategory}`;
+      categoriesButton.textContent = `Categoría: ${selectedCategory}`;
 
-      // Guardar selección
       localStorage.setItem('categoriaSeleccionada', selectedCategory);
 
       chistesGuardados = [];
@@ -187,17 +235,29 @@ function cargarCategorias() {
   });
 }
 
-
 // =======================================================
 // 🎛️ EVENT LISTENERS
 // =======================================================
-// Cambiar cantidad de chistes
-numberInput.addEventListener('change', () => {
+numberInput.addEventListener('change', async () => {
   const val = parseInt(numberInput.value);
+
   if (val >= 1 && val <= 10) {
-    chistesGuardados = [];
-    localStorage.removeItem('chistes');
-    jokesList();
+    const cantidadActual = chistesGuardados.length;
+
+    if (val > cantidadActual) {
+      const cantidadExtra = val - cantidadActual;
+      const nuevosChistes = await obtenerMasChistes(cantidadExtra);
+      chistesGuardados = chistesGuardados.concat(nuevosChistes);
+
+      localStorage.setItem('chistes', JSON.stringify(chistesGuardados));
+      renderChistes(chistesGuardados);
+    }
+
+    if (val < cantidadActual) {
+      chistesGuardados.splice(val);
+      localStorage.setItem('chistes', JSON.stringify(chistesGuardados));
+      renderChistes(chistesGuardados);
+    }
   }
 });
 
@@ -211,7 +271,7 @@ window.addEventListener('DOMContentLoaded', () => {
   const categoriaGuardada = localStorage.getItem('categoriaSeleccionada');
   if (categoriaGuardada) {
     selectedCategory = categoriaGuardada;
-    dropdownButton.textContent = `Categoría: ${selectedCategory}`;
+    categoriesButton.textContent = `Categoría: ${selectedCategory}`;
   }
 
   cargarCategorias();
