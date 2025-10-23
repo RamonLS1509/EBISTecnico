@@ -20,11 +20,11 @@ let chistesGuardados = JSON.parse(localStorage.getItem('chistes'));
  
 // Obtiene y muestra los chistes
 function jokesList() {
-  const amount = parseInt(numberInput?.value);
+  const amount = parseInt(numberInput.value);
   const languaje = 'en';
 
   // Si hay chistes guardados, los muestra sin volver a llamar a la API
-  if (chistesGuardados && chistesGuardados.length > 0) {
+  if (chistesGuardados) {
     renderChistes(chistesGuardados);
     renderFavorites();
     return;
@@ -36,9 +36,9 @@ function jokesList() {
     .then(datos => {
       if (!datos) return;
 
-      let jokes = datos.jokes || [datos];
+      let jokes = datos.jokes;
 
-      // 🆕 Eliminar chistes duplicados basados en su ID
+      // Eliminar chistes duplicados basados en su ID
       jokes = filtrarDuplicados(jokes, chistesGuardados);
 
       chistesGuardados = jokes;
@@ -59,7 +59,7 @@ async function obtenerMasChistes(cantidad) {
 
   let nuevos = data.jokes ? data.jokes : [data];
 
-  // 🆕 Filtra duplicados respecto a los ya guardados
+  // Filtra duplicados respecto a los ya guardados
   nuevos = filtrarDuplicados(nuevos, chistesGuardados);
 
   // Si sigue habiendo menos chistes de los necesarios, volver a intentar
@@ -74,25 +74,60 @@ async function obtenerMasChistes(cantidad) {
 
 // 🆕 Función para eliminar duplicados por ID o texto
 function filtrarDuplicados(nuevos, existentes) {
-  const existentesIDs = new Set(existentes.map(c => c.id));
-  const existentesTextos = new Set(
-    existentes.map(c =>
-      c.type === 'single' ? c.joke : c.setup
-    )
-  );
+  const filtrados = [];
 
-  return nuevos.filter(
-    n =>
-      !existentesIDs.has(n.id) &&
-      !existentesTextos.has(n.type === 'single' ? n.joke : n.setup)
-  );
+  for (let i = 0; i < nuevos.length; i++) {
+    const chisteNuevo = nuevos[i];
+    let repetido = false;
+
+    for (let j = 0; j < existentes.length; j++) {
+      const chisteExistente = existentes[j];
+
+      // Compara por ID si existe
+      if (chisteNuevo.id === chisteExistente.id) {
+        repetido = true;
+        break;
+      }
+
+      // Compara por texto del chiste
+      const textoNuevo = chisteNuevo.type === 'single'
+        ? chisteNuevo.joke
+        : chisteNuevo.setup;
+
+      const textoExistente = chisteExistente.type === 'single'
+        ? chisteExistente.joke
+        : chisteExistente.setup;
+
+      if (textoNuevo === textoExistente) {
+        repetido = true;
+        break;
+      }
+    }
+
+    // Si no está repetido, lo agregamos
+    if (!repetido) {
+      filtrados.push(chisteNuevo);
+    }
+  }
+
+  return filtrados;
 }
 
 // =======================================================
 // 💾 FUNCIONES DE ALMACENAMIENTO Y FAVORITOS
 // =======================================================
 function guardarFavorito(joke) {
-  if (!favoritos.some(f => f.id === joke.id)) {
+  let existe = false;
+
+  for (let i = 0; i < favoritos.length; i++) {
+    const fav = favoritos[i];
+
+    if (fav.id === joke.id) {
+      existe = true;
+      break; 
+    }
+  }
+  if (!existe) {
     favoritos.push(joke);
     localStorage.setItem('favoritos', JSON.stringify(favoritos));
   }
@@ -152,26 +187,41 @@ function crearCard(joke, index, esFavorito = false) {
     }
   });
 
-  // Botón guardar (solo si no es favorito)
   const btnGuardar = card.querySelector('.btn-guardar');
   if (btnGuardar) {
-    btnGuardar.addEventListener('click', () => {
-      if (!favoritos.some(f => f.id === joke.id)) {
-        guardarFavorito(joke);
+  btnGuardar.addEventListener('click', () => {
+    // Comprobar si el chiste ya está en favoritos
+    let existe = false;
+
+    // Si no existe, se guarda en favoritos
+    if (!existe) {
+      guardarFavorito(joke);
+    }
+
+    // Quita la tarjeta del listado de chistes normales
+    card.remove();
+
+    // Elimina el chiste del array de chistes guardados
+    let nuevosChistes = [];
+    for (let i = 0; i < chistesGuardados.length; i++) {
+      if (chistesGuardados[i].id !== joke.id) {
+        nuevosChistes.push(chistesGuardados[i]);
       }
+    }
+    chistesGuardados = nuevosChistes;
 
-      // Quita del listado normal y actualiza almacenamiento
-      card.remove();
-      chistesGuardados = chistesGuardados.filter(c => c.id !== joke.id);
-      localStorage.setItem('chistes', JSON.stringify(chistesGuardados));
+    // Guarda los cambios en localStorage
+    localStorage.setItem('chistes', JSON.stringify(chistesGuardados));
 
-      renderFavorites();
-    });
-  }
+    // Vuelve a mostrar los favoritos actualizados
+    renderFavorites();
+  });
+}
 
   return card;
 }
 
+//Funcion para mostrar las bromas por pantalla en cards
 function renderChistes(jokes) {
   cardJoke.innerHTML = '';
   jokes.forEach((joke, i) => {
@@ -180,6 +230,7 @@ function renderChistes(jokes) {
   });
 }
 
+//Funcion para mostrar las bromas favoritas por pantalla en cards
 function renderFavorites() {
   favoritesContainer.innerHTML = '';
 
