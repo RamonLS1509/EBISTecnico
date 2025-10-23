@@ -1,7 +1,7 @@
 # 😂 Joke Generator App
 
 Aplicación web creada con **JavaScript** y **TailwindCSS** que muestra chistes aleatorios obtenidos desde la **JokeAPI**.  
-Permite elegir categorías, ajustar la cantidad de chistes, guardar favoritos y evita mostrar chistes repetidos.  
+Permite elegir categorías, ajustar la cantidad de chistes y guardar favoritos 
 Toda la información se almacena localmente mediante `localStorage`.
 
 ---
@@ -12,7 +12,6 @@ Toda la información se almacena localmente mediante `localStorage`.
 - 🗂️ Selección de categorías (Any, Programming, Dark, Pun, etc.).
 - 🔢 Control de cantidad de chistes (hasta 10 en inglés).
 - ❤️ Sistema de favoritos persistente.
-- 🧠 Prevención de chistes duplicados.
 - 💾 Uso de `localStorage` para guardar configuración y datos.
 - 🌙 Diseño responsive gracias a TailwindCSS.
 
@@ -84,23 +83,6 @@ Se utiliza `localStorage` para guardar:
 Para limpiar todos los datos:
 ```js
 localStorage.clear();
-```
-
----
-
-## 🧼 Prevención de duplicados
-
-El sistema compara tanto el **ID** como el **texto del chiste** antes de agregarlo, garantizando que no se repita:
-
-```js
-function filtrarDuplicados(nuevos, existentes) {
-  const existentesTextos = new Set(
-    existentes.map(c => (c.type === 'single' ? c.joke : c.setup))
-  );
-  return nuevos.filter(
-    n => !existentesTextos.has(n.type === 'single' ? n.joke : n.setup)
-  );
-}
 ```
 
 ## 👨‍💻 Autor
